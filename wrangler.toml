@@ -1,0 +1,46 @@
+name = "guess-name" # Choose a unique name for your worker
+main = "index.js"                 # Or worker.js, your main worker script (ES module format)
+compatibility_date = "2024-03-01" # Use a recent compatibility date
+
+# This rule allows importing .html files as text/strings
+[[rules]]
+type = "ESModule"
+globs = ["**/*.js"]
+
+[[rules]]
+type = "Text"
+globs = ["**/*.html"]
+fallthrough = true # 允许其他规则继续匹配
+
+[[rules]]
+type = "Text"     # TXT 文件作为文本字符串导入 (例如 import promptText from './prompt.txt';)
+globs = ["**/*.txt"]
+fallthrough = true # 允许其他规则继续匹配
+
+[[rules]]
+type = "Text"     # SVG 文件作为文本字符串导入
+globs = ["**/*.svg"]
+fallthrough = true
+
+# 为环境变量定义一个默认值 (可选)
+[vars]
+OAI_OR_DS = "OAI"
+BYPASS_AI_MODE = "false" # 生产环境默认关闭旁路模式
+OPENAI_API_BASE_URL="https://api.oaipro.com/v1"
+OPENAI_MODEL="gpt-4o"
+# OPENAI_API_BASE_URL="https://api.siliconflow.cn/v1"
+# OPENAI_MODEL="deepseek-ai/DeepSeek-V3"
+
+# OPENAI_API_KEY = "your_production_openai_key_if_not_using_secrets" # 强烈建议使用 secrets!
+
+# If your worker needs to make outbound requests (like to OpenAI API)
+# [unsafe]
+# bindings = [
+#   {name="OPENAI_API_KEY", type="secret_text"} # This is handled by secrets, not direct unsafe binding
+# ]
+# outbound_service_workers = true # Not usually needed for fetch to public APIs like OpenAI
+
+# For wrangler dev, it's good to specify a local protocol for the worker.
+# [dev]
+# local_protocol = "http"
+# port = 8787 # or any port you prefer

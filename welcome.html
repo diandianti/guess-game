@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>猜病🫓</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+            margin: 0;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: #1c1e21;
+        }
+        #chat-container {
+            width: 90%;
+            max-width: 600px;
+            height: 95vh;
+            max-height: 750px;
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1), 0 8px 16px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        #chat-messages {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+            border-bottom: 1px solid #ccd0d5;
+        }
+        .message {
+            margin-bottom: 12px;
+            padding: 8px 12px;
+            border-radius: 18px;
+            line-height: 1.34;
+            max-width: 75%;
+            word-wrap: break-word;
+            clear: both; /* Ensure messages don't overlap if float is used */
+        }
+        .message.user {
+            background-color: #007bff; /* Facebook Messenger blue */
+            color: white;
+            margin-left: auto; /* Aligns to the right */
+            border-bottom-right-radius: 5px;
+            float: right;
+        }
+        .message.bot {
+            background-color: #e4e6eb; /* Facebook Messenger grey */
+            color: #050505;
+            margin-right: auto; /* Aligns to the left */
+            border-bottom-left-radius: 5px;
+            float: left;
+        }
+        .message.system-notification {
+            background-color: #f0f8ff; /* AliceBlue, a light, neutral color */
+            color: #31708f; /* A soft blue text color */
+            border: 1px solid #bce8f1; /* Light blue border */
+            text-align: center;
+            max-width: 95%; /* Allow it to be wider */
+            margin-left: auto;
+            margin-right: auto;
+            padding: 10px;
+            border-radius: 8px;
+            font-weight: 500;
+            float: none; /* Center it */
+        }
+        .message strong {
+            font-weight: 600;
+        }
+        #chat-input-area {
+            display: flex; /* Default to flex for alignment */
+            padding: 10px 15px;
+            background-color: #ffffff;
+            border-top: 1px solid #ccd0d5;
+            flex-direction: column;
+        }
+        #input-wrapper {
+            display: flex;
+            width: 100%;
+            align-items: center; /* Vertically align items */
+        }
+        #chat-input {
+            flex-grow: 1;
+            padding: 10px 15px;
+            border: 1px solid #ccd0d5;
+            border-radius: 20px;
+            margin-right: 10px;
+            font-size: 15px;
+            line-height: 1.34;
+        }
+        #chat-input:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+        }
+        #send-button {
+            padding: 0 16px; /* Adjust padding for height */
+            height: 40px; /* Match input height */
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 10px;
+            font-weight: 600;
+            transition: background-color 0.2s;
+            display: flex; /* For icon centering if an icon was used */
+            align-items: center;
+            justify-content: center;
+        }
+        #send-button:hover {
+            background-color: #0056b3;
+        }
+        #send-button:disabled {
+            background-color: #bcc0c4;
+            cursor: not-allowed;
+        }
+        .typing-indicator {
+            padding: 8px 12px;
+            font-style: italic;
+            color: #606770;
+            background-color: #e4e6eb;
+            border-radius: 18px;
+            max-width: fit-content;
+            float: left;
+            clear: both;
+            margin-bottom: 12px;
+        }
+        #char-count-error {
+            font-size: 12px;
+            color: #a9ea97;
+            text-align: left;
+            margin-top: 5px;
+            margin-left: 15px;
+            height: 1em; /* Reserve space to prevent layout shifts */
+        }
+    </style>
+</head>
+<body>
+    <div id="chat-container">
+        <div id="chat-messages">
+            </div>
+        <div id="chat-input-area">
+            <div id="input-wrapper">
+                <input type="text" id="chat-input" placeholder="输入消息..." maxlength="140">
+                <button id="send-button">发送</button>
+            </div>
+            <div id="char-count-error"></div>
+        </div>
+    </div>
+
+    <script>
+        const chatMessages = document.getElementById('chat-messages');
+        const chatInput = document.getElementById('chat-input');
+        const sendButton = document.getElementById('send-button');
+        const chatInputArea = document.getElementById('chat-input-area');
+        const charCountError = document.getElementById('char-count-error');
+
+        const MAX_INPUT_LENGTH = 140;
+        let chatId = null;
+        let gameEndedByCondition = false;
+
+        chatInput.addEventListener('input', () => {
+            const currentLength = chatInput.value.length;
+            if (chatInput.value.length > MAX_INPUT_LENGTH) { // Should not happen due to maxlength
+                chatInput.value = chatInput.value.substring(0, MAX_INPUT_LENGTH);
+            }
+            charCountError.textContent = `${chatInput.value.length}/${MAX_INPUT_LENGTH}`;
+
+        });
+
+        function addMessage(sender, text, type = 'normal') {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message');
+            if (type === 'system-notification') {
+                messageElement.classList.add('system-notification');
+                messageElement.textContent = text;
+            } else {
+                messageElement.classList.add(sender);
+                const senderPrefix = sender === 'user' ? '你: ' : '病人: ';
+                 // Basic XSS protection for text content
+                const tempDiv = document.createElement('div');
+                tempDiv.textContent = text;
+                const escapedText = tempDiv.innerHTML;
+
+                messageElement.innerHTML = `<strong>${senderPrefix}</strong>${escapedText}`;
+            }
+            chatMessages.appendChild(messageElement);
+            // Scroll to the bottom
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function showTypingIndicator() {
+            let typingIndicator = document.getElementById('typing-indicator');
+            if (!typingIndicator) {
+                typingIndicator = document.createElement('div');
+                typingIndicator.id = 'typing-indicator';
+                typingIndicator.classList.add('typing-indicator'); // Using specific class
+                typingIndicator.textContent = '病人 正在输入...';
+                chatMessages.appendChild(typingIndicator);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+        }
+        function removeTypingIndicator() {
+            const typingIndicator = document.getElementById('typing-indicator');
+            if (typingIndicator) {
+                typingIndicator.remove();
+            }
+        }
+
+        function initializeChat() {
+            const initialBotMessageText = "医生你好";
+            addMessage('bot', initialBotMessageText);
+            charCountError.textContent = `0/${MAX_INPUT_LENGTH}`;
+            gameEndedByCondition = false;
+            chatInputArea.style.display = 'flex';
+            chatInput.style.display = 'block';
+            sendButton.style.display = 'block';
+            sendButton.disabled = false;
+            chatInput.disabled = false;
+            chatInput.value = '';
+            chatInput.focus();
+        }
+
+        async function sendMessage() {
+            if (gameEndedByCondition) return;
+
+            const messageText = chatInput.value.trim();
+
+            if (messageText.length > MAX_INPUT_LENGTH) {
+                charCountError.textContent = `输入不能超过 ${MAX_INPUT_LENGTH} 个字符！`;
+                chatInput.focus();
+                return;
+            }
+            if (!messageText) {
+                 charCountError.textContent = `0/${MAX_INPUT_LENGTH}`;
+                 return;
+            }
+
+            addMessage('user', messageText);
+            chatInput.value = '';
+            charCountError.textContent = `0/${MAX_INPUT_LENGTH}`;
+            showTypingIndicator();
+            sendButton.disabled = true;
+            chatInput.disabled = true;
+
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: messageText,
+                        chat_id: chatId
+                    }),
+                });
+
+                removeTypingIndicator();
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ detail: '发送消息失败，无法解析响应。' }));
+                    addMessage('bot', `错误: ${errorData.detail || response.statusText}`);
+                    if (!gameEndedByCondition) {
+                        sendButton.disabled = false;
+                        chatInput.disabled = false;
+                        chatInput.focus();
+                    }
+                    return;
+                }
+
+                const data = await response.json();
+
+                if (data.chat_id && !chatId) {
+                    chatId = data.chat_id;
+                }
+
+                if (data.reply && data.gameOver === false) {
+                    addMessage('bot', data.reply);
+                }
+
+                if (data.gameOver === true) {
+                    gameEndedByCondition = true;
+                    // The data.reply from backend already contains the concluding message.
+                    // For example: "恭喜回答正确" or "尝试次数过多，游戏结束，请重新开始。"
+                    // If a more distinct system message is desired for game over, add it here:
+                    addMessage(null, data.gameOverReason === "limit_reached" ? "尝试次数已用完！" : "恭喜！🎉🎉🎉",
+                        'system-notification');
+                    chatInputArea.style.display = 'none';
+                    // Consider adding a "Restart Game" button here that calls initializeChat() and resets chatId = null;
+                } else {
+                    if (!gameEndedByCondition) {
+                        sendButton.disabled = false;
+                        chatInput.disabled = false;
+                        chatInput.focus();
+                    }
+                }
+
+            } catch (error) {
+                removeTypingIndicator();
+                if (!gameEndedByCondition) {
+                    sendButton.disabled = false;
+                    chatInput.disabled = false;
+                    chatInput.focus();
+                }
+                console.error('Failed to send message:', error);
+                addMessage('bot', '连接后端或处理请求时发生错误，请稍后再试。');
+            }
+        }
+
+        sendButton.addEventListener('click', sendMessage);
+        chatInput.addEventListener('keypress', (event) => {
+            // Allow sending if Enter is pressed, button is not disabled, and game is not over
+            if (event.key === 'Enter' && !sendButton.disabled && !gameEndedByCondition) {
+                sendMessage();
+            }
+        });
+
+        initializeChat();
+    </script>
+</body>
+</html>
